@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Calidad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #07090f; color: #f1f5f9; min-height: 100vh; padding: 28px; }
+  .dash-header { margin-bottom: 24px; }
+  .dash-header h1 { font-size: 20px; font-weight: 600; color: #f8fafc; letter-spacing: -0.4px; }
+  .dash-header p { font-size: 13px; color: #94a3b8; margin-top: 3px; }
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 24px; }
+  .metric { background: #141824; border: 1px solid #2d3148; border-radius: 12px; padding: 16px; }
+  .metric-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px; }
+  .metric-value { font-size: 24px; font-weight: 600; color: #f8fafc; }
+  .metric-value.accent { color: #c4b5fd; }
+  .metric-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  .filters { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+  .filters label { font-size: 12px; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; }
+  select { font-size: 13px; padding: 8px 12px; border: 1px solid #2d3148; border-radius: 8px; background: #141824; color: #e2e8f0; cursor: pointer; outline: none; transition: border-color .15s; }
+  select:focus { border-color: #818cf8; }
+  .chart-row { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin-bottom: 12px; }
+  .card { background: #141824; border: 1px solid #2d3148; border-radius: 12px; padding: 18px; }
+  .chart-title { font-size: 12px; font-weight: 600; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; font-size: 12px; color: #cbd5e1; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .tab { font-size: 12px; padding: 5px 11px; border-radius: 6px; border: 1px solid #2d3148; background: transparent; color: #94a3b8; cursor: pointer; transition: all .15s; }
+  .tab:hover { background: #2d3148; color: #e2e8f0; }
+  .tab.active { background: rgba(129,140,248,0.15); color: #c4b5fd; border-color: rgba(129,140,248,0.5); font-weight: 600; }
+  .divider { border: none; border-top: 1px solid #2d3148; margin: 24px 0; }
+  .chart-sub { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+  @media (max-width: 640px) { .chart-row { grid-template-columns: 1fr; } .metrics { grid-template-columns: repeat(2,1fr); } }
+</style>
+</head>
+<body>
+
+<div class="dash-header">
+  <h1>Dashboard de calidad</h1>
+  <p>Satisfaction score &middot; OTAs &middot; General A&amp;B</p>
+</div>
+
+<div class="metrics" id="metricCards"></div>
+
+<div class="filters">
+  <label>Mes</label>
+  <select id="mesFilter">
+    <option value="ALL">Todos</option>
+    <option value="ENERO">Enero</option>
+    <option value="FEBRERO">Febrero</option>
+    <option value="MARZO">Marzo</option>
+    <option value="ABRIL">Abril</option>
+  </select>
+  <label>Categoría</label>
+  <select id="catFilter">
+    <option value="ALL">Todas</option>
+    <option value="Calidad bebidas">Calidad bebidas</option>
+    <option value="Calidad comida">Calidad comida</option>
+    <option value="Servicio">Servicio</option>
+  </select>
+  <label>Sede</label>
+  <select id="sedeFilter">
+    <option value="ALL">Todas</option>
+    <option value="BOG">BOG</option>
+    <option value="CLO">CLO</option>
+    <option value="CTG">CTG</option>
+    <option value="GET">GET</option>
+    <option value="GTP">GTP</option>
+    <option value="MDE">MDE</option>
+    <option value="SAI">SAI</option>
+    <option value="SAL">SAL</option>
+    <option value="SMR">SMR</option>
+    <option value="TAY">TAY</option>
+  </select>
+</div>
+
+<div class="chart-row">
+  <div class="card">
+    <div class="chart-title">Score por sede</div>
+    <div class="legend" id="legBar"></div>
+    <div style="position:relative;height:260px"><canvas id="barChart" role="img" aria-label="Satisfaction score por sede y categoría"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="chart-title">Evolución mensual</div>
+    <div class="tabs" id="sedeTabsWrap"></div>
+    <div style="position:relative;height:230px"><canvas id="lineChart" role="img" aria-label="Evolución mensual del satisfaction score"></canvas></div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px;">
+  <div class="card">
+    <div class="chart-title">Puntuación OTAs</div>
+    <div class="legend" id="legOta"></div>
+    <div style="position:relative;height:240px"><canvas id="otaBar" role="img" aria-label="Puntuación promedio por OTA por mes"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="chart-title">Evolución mensual OTAs</div>
+    <div class="legend" id="legOtaLine"></div>
+    <div style="position:relative;height:240px"><canvas id="otaLineChart" role="img" aria-label="Evolución mensual de puntuación por OTA"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="chart-title">Menciones OTAs</div>
+    <div class="legend" id="legMen"></div>
+    <div style="position:relative;height:240px"><canvas id="menBar" role="img" aria-label="Menciones por OTA por mes"></canvas></div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="card">
+  <div class="chart-title">General A&amp;B</div>
+  <div class="tabs" id="gabTabsWrap"></div>
+  <div class="chart-row" style="margin-bottom:0">
+    <div>
+      <div class="legend" id="legGabScore"></div>
+      <div style="position:relative;height:220px"><canvas id="gabScoreChart" role="img" aria-label="Puntuación General A&B por mes"></canvas></div>
+      <p class="chart-sub">Puntuación mensual</p>
+    </div>
+    <div>
+      <div class="legend" id="legGabMen"></div>
+      <div style="position:relative;height:220px"><canvas id="gabMenChart" role="img" aria-label="Menciones General A&B por sede"></canvas></div>
+      <p class="chart-sub">Menciones por sede</p>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:12px;background:#141824;border:1px solid #2d3148;border-radius:12px;padding:18px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+    <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;">Ranking General A&amp;B</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;font-weight:500;">Mes</label>
+      <select id="rankMes" style="font-size:12px;padding:5px 10px;border:1px solid #2d3148;border-radius:7px;background:#0f1117;color:#e2e8f0;cursor:pointer;outline:none;">
+        <option value="ALL">Todos</option>
+        <option value="ENERO">Enero</option>
+        <option value="FEBRERO">Febrero</option>
+        <option value="MARZO">Marzo</option>
+        <option value="ABRIL">Abril</option>
+      </select>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <div>
+      <div style="font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:10px;color:#34d399;">&#9670; Top 5 mejores</div>
+      <div id="rankTop"></div>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:10px;color:#f87171;">&#9670; Top 5 menores</div>
+      <div id="rankBot"></div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:16px;margin-top:14px;font-size:11px;color:#64748b;">
+    <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#34d399;display:inline-block"></span>Mejor score</span>
+    <span style="display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#f87171;display:inline-block"></span>Menor score</span>
+    <span>· menciones del período</span>
+  </div>
+</div>
+
+<script>
+Chart.defaults.color='#cbd5e1';
+Chart.defaults.borderColor='#252a3d';
+Chart.defaults.font.family="'Inter', sans-serif";
+Chart.defaults.font.size=12;
+
+const raw=[
+  {sede:'BOG',mes:'ENERO',cat:'Calidad bebidas',score:77.78},{sede:'BOG',mes:'ENERO',cat:'Calidad comida',score:83.7},{sede:'BOG',mes:'ENERO',cat:'Servicio',score:84.97},
+  {sede:'BOG',mes:'FEBRERO',cat:'Calidad bebidas',score:78.33},{sede:'BOG',mes:'FEBRERO',cat:'Calidad comida',score:72.78},{sede:'BOG',mes:'FEBRERO',cat:'Servicio',score:90.06},
+  {sede:'BOG',mes:'MARZO',cat:'Calidad bebidas',score:80},{sede:'BOG',mes:'MARZO',cat:'Calidad comida',score:89.9},{sede:'BOG',mes:'MARZO',cat:'Servicio',score:83.84},
+  {sede:'BOG',mes:'ABRIL',cat:'Calidad bebidas',score:89.54},{sede:'BOG',mes:'ABRIL',cat:'Calidad comida',score:88.33},{sede:'BOG',mes:'ABRIL',cat:'Servicio',score:95.32},
+  {sede:'CLO',mes:'ENERO',cat:'Calidad bebidas',score:87.78},{sede:'CLO',mes:'ENERO',cat:'Calidad comida',score:76.54},{sede:'CLO',mes:'ENERO',cat:'Servicio',score:92.78},
+  {sede:'CLO',mes:'FEBRERO',cat:'Calidad bebidas',score:87.04},{sede:'CLO',mes:'FEBRERO',cat:'Calidad comida',score:87.88},{sede:'CLO',mes:'FEBRERO',cat:'Servicio',score:90.74},
+  {sede:'CLO',mes:'MARZO',cat:'Calidad bebidas',score:78.52},{sede:'CLO',mes:'MARZO',cat:'Calidad comida',score:73.33},{sede:'CLO',mes:'MARZO',cat:'Servicio',score:88.89},
+  {sede:'CLO',mes:'ABRIL',cat:'Calidad bebidas',score:89.47},{sede:'CLO',mes:'ABRIL',cat:'Calidad comida',score:85.96},{sede:'CLO',mes:'ABRIL',cat:'Servicio',score:91.98},
+  {sede:'CTG',mes:'ENERO',cat:'Calidad bebidas',score:82.64},{sede:'CTG',mes:'ENERO',cat:'Calidad comida',score:84.31},{sede:'CTG',mes:'ENERO',cat:'Servicio',score:91.67},
+  {sede:'CTG',mes:'FEBRERO',cat:'Calidad bebidas',score:82.35},{sede:'CTG',mes:'FEBRERO',cat:'Calidad comida',score:82.96},{sede:'CTG',mes:'FEBRERO',cat:'Servicio',score:88.89},
+  {sede:'CTG',mes:'MARZO',cat:'Calidad bebidas',score:92.31},{sede:'CTG',mes:'MARZO',cat:'Calidad comida',score:84.62},{sede:'CTG',mes:'MARZO',cat:'Servicio',score:81.2},
+  {sede:'CTG',mes:'ABRIL',cat:'Calidad bebidas',score:91.45},{sede:'CTG',mes:'ABRIL',cat:'Calidad comida',score:91.45},{sede:'CTG',mes:'ABRIL',cat:'Servicio',score:93.16},
+  {sede:'GET',mes:'ENERO',cat:'Calidad bebidas',score:77.08},{sede:'GET',mes:'ENERO',cat:'Calidad comida',score:72.59},{sede:'GET',mes:'ENERO',cat:'Servicio',score:78.47},
+  {sede:'GET',mes:'FEBRERO',cat:'Calidad bebidas',score:81.48},{sede:'GET',mes:'FEBRERO',cat:'Calidad comida',score:83.7},{sede:'GET',mes:'FEBRERO',cat:'Servicio',score:86.38},
+  {sede:'GET',mes:'MARZO',cat:'Calidad bebidas',score:86.32},{sede:'GET',mes:'MARZO',cat:'Calidad comida',score:84.36},{sede:'GET',mes:'MARZO',cat:'Servicio',score:80.25},
+  {sede:'GET',mes:'ABRIL',cat:'Calidad bebidas',score:80.39},{sede:'GET',mes:'ABRIL',cat:'Calidad comida',score:75.82},{sede:'GET',mes:'ABRIL',cat:'Servicio',score:81.29},
+  {sede:'GTP',mes:'ENERO',cat:'Calidad bebidas',score:70.88},{sede:'GTP',mes:'ENERO',cat:'Calidad comida',score:62.5},{sede:'GTP',mes:'ENERO',cat:'Servicio',score:70.61},
+  {sede:'GTP',mes:'FEBRERO',cat:'Calidad bebidas',score:93.65},{sede:'GTP',mes:'FEBRERO',cat:'Calidad comida',score:95.24},{sede:'GTP',mes:'FEBRERO',cat:'Servicio',score:98.41},
+  {sede:'GTP',mes:'MARZO',cat:'Calidad bebidas',score:88.89},{sede:'GTP',mes:'MARZO',cat:'Calidad comida',score:88.89},{sede:'GTP',mes:'MARZO',cat:'Servicio',score:88.89},
+  {sede:'GTP',mes:'ABRIL',cat:'Calidad bebidas',score:82.22},{sede:'GTP',mes:'ABRIL',cat:'Calidad comida',score:88.89},{sede:'GTP',mes:'ABRIL',cat:'Servicio',score:81.48},
+  {sede:'MDE',mes:'ENERO',cat:'Calidad bebidas',score:77.78},{sede:'MDE',mes:'ENERO',cat:'Calidad comida',score:73.68},{sede:'MDE',mes:'ENERO',cat:'Servicio',score:87.72},
+  {sede:'MDE',mes:'FEBRERO',cat:'Calidad bebidas',score:87.96},{sede:'MDE',mes:'FEBRERO',cat:'Calidad comida',score:88.3},{sede:'MDE',mes:'FEBRERO',cat:'Servicio',score:94.81},
+  {sede:'MDE',mes:'MARZO',cat:'Calidad bebidas',score:80.72},{sede:'MDE',mes:'MARZO',cat:'Calidad comida',score:76.14},{sede:'MDE',mes:'MARZO',cat:'Servicio',score:87.88},
+  {sede:'MDE',mes:'ABRIL',cat:'Calidad bebidas',score:84.95},{sede:'MDE',mes:'ABRIL',cat:'Calidad comida',score:81.99},{sede:'MDE',mes:'ABRIL',cat:'Servicio',score:92.11},
+  {sede:'SAI',mes:'ENERO',cat:'Calidad bebidas',score:86.42},{sede:'SAI',mes:'ENERO',cat:'Calidad comida',score:79.01},{sede:'SAI',mes:'ENERO',cat:'Servicio',score:91.36},
+  {sede:'SAI',mes:'FEBRERO',cat:'Calidad bebidas',score:80.56},{sede:'SAI',mes:'FEBRERO',cat:'Calidad comida',score:80.56},{sede:'SAI',mes:'FEBRERO',cat:'Servicio',score:80.56},
+  {sede:'SAI',mes:'ABRIL',cat:'Calidad bebidas',score:87.04},{sede:'SAI',mes:'ABRIL',cat:'Calidad comida',score:77.78},{sede:'SAI',mes:'ABRIL',cat:'Servicio',score:90.74},
+  {sede:'SAL',mes:'ENERO',cat:'Calidad bebidas',score:90.4},{sede:'SAL',mes:'ENERO',cat:'Calidad comida',score:81.48},{sede:'SAL',mes:'ENERO',cat:'Servicio',score:94.44},
+  {sede:'SAL',mes:'FEBRERO',cat:'Calidad bebidas',score:92.06},{sede:'SAL',mes:'FEBRERO',cat:'Calidad comida',score:88.12},{sede:'SAL',mes:'FEBRERO',cat:'Servicio',score:92.22},
+  {sede:'SAL',mes:'MARZO',cat:'Calidad bebidas',score:94.71},{sede:'SAL',mes:'MARZO',cat:'Calidad comida',score:89.95},{sede:'SAL',mes:'MARZO',cat:'Servicio',score:95.24},
+  {sede:'SAL',mes:'ABRIL',cat:'Calidad bebidas',score:89.37},{sede:'SAL',mes:'ABRIL',cat:'Calidad comida',score:86.32},{sede:'SAL',mes:'ABRIL',cat:'Servicio',score:92.44},
+  {sede:'SMR',mes:'ENERO',cat:'Calidad bebidas',score:89.95},{sede:'SMR',mes:'ENERO',cat:'Calidad comida',score:90.48},{sede:'SMR',mes:'ENERO',cat:'Servicio',score:88.89},
+  {sede:'SMR',mes:'FEBRERO',cat:'Calidad bebidas',score:92.31},{sede:'SMR',mes:'FEBRERO',cat:'Calidad comida',score:91.56},{sede:'SMR',mes:'FEBRERO',cat:'Servicio',score:91.88},
+  {sede:'SMR',mes:'MARZO',cat:'Calidad bebidas',score:93.83},{sede:'SMR',mes:'MARZO',cat:'Calidad comida',score:90.28},{sede:'SMR',mes:'MARZO',cat:'Servicio',score:92.22},
+  {sede:'SMR',mes:'ABRIL',cat:'Calidad bebidas',score:88.03},{sede:'SMR',mes:'ABRIL',cat:'Calidad comida',score:91.67},{sede:'SMR',mes:'ABRIL',cat:'Servicio',score:91.27},
+  {sede:'TAY',mes:'ENERO',cat:'Calidad bebidas',score:88.44},{sede:'TAY',mes:'ENERO',cat:'Calidad comida',score:83.76},{sede:'TAY',mes:'ENERO',cat:'Servicio',score:89.32},
+  {sede:'TAY',mes:'FEBRERO',cat:'Calidad bebidas',score:79.89},{sede:'TAY',mes:'FEBRERO',cat:'Calidad comida',score:74.75},{sede:'TAY',mes:'FEBRERO',cat:'Servicio',score:84.34},
+  {sede:'TAY',mes:'MARZO',cat:'Calidad bebidas',score:79.37},{sede:'TAY',mes:'MARZO',cat:'Calidad comida',score:82.57},{sede:'TAY',mes:'MARZO',cat:'Servicio',score:84.31},
+  {sede:'TAY',mes:'ABRIL',cat:'Calidad bebidas',score:87.47},{sede:'TAY',mes:'ABRIL',cat:'Calidad comida',score:88.22},{sede:'TAY',mes:'ABRIL',cat:'Servicio',score:94.56},
+];
+const otaRaw=[
+  {sede:'CLO',mes:'ENERO',ota:'BOOKING',score:74,mentions:12},{sede:'CLO',mes:'ENERO',ota:'GOOGLE',score:65,mentions:2},{sede:'CLO',mes:'ENERO',ota:'HOSTELWORLD',score:47,mentions:2},
+  {sede:'CLO',mes:'FEBRERO',ota:'BOOKING',score:83,mentions:5},{sede:'CLO',mes:'FEBRERO',ota:'GOOGLE',score:100,mentions:2},{sede:'CLO',mes:'FEBRERO',ota:'HOSTELWORLD',score:93,mentions:6},
+  {sede:'CLO',mes:'MARZO',ota:'BOOKING',score:66,mentions:2},{sede:'CLO',mes:'MARZO',ota:'GOOGLE',score:100,mentions:4},{sede:'CLO',mes:'MARZO',ota:'HOSTELWORLD',score:100,mentions:9},
+  {sede:'CLO',mes:'ABRIL',ota:'BOOKING',score:56,mentions:5},{sede:'CLO',mes:'ABRIL',ota:'GOOGLE',score:49,mentions:5},{sede:'CLO',mes:'ABRIL',ota:'HOSTELWORLD',score:75,mentions:5},
+  {sede:'BOG',mes:'ENERO',ota:'BOOKING',score:69,mentions:11},{sede:'BOG',mes:'ENERO',ota:'GOOGLE',score:100,mentions:3},{sede:'BOG',mes:'ENERO',ota:'HOSTELWORLD',score:87,mentions:5},
+  {sede:'BOG',mes:'FEBRERO',ota:'BOOKING',score:61,mentions:16},{sede:'BOG',mes:'FEBRERO',ota:'GOOGLE',score:95,mentions:6},{sede:'BOG',mes:'FEBRERO',ota:'HOSTELWORLD',score:100,mentions:3},
+  {sede:'BOG',mes:'MARZO',ota:'BOOKING',score:90,mentions:8},{sede:'BOG',mes:'MARZO',ota:'GOOGLE',score:72,mentions:14},{sede:'BOG',mes:'MARZO',ota:'HOSTELWORLD',score:67,mentions:1},
+  {sede:'BOG',mes:'ABRIL',ota:'BOOKING',score:72,mentions:5},{sede:'BOG',mes:'ABRIL',ota:'GOOGLE',score:74,mentions:4},{sede:'BOG',mes:'ABRIL',ota:'HOSTELWORLD',score:100,mentions:6},{sede:'BOG',mes:'ABRIL',ota:'TRIPADVISOR',score:100,mentions:2},
+  {sede:'TAY',mes:'ENERO',ota:'BOOKING',score:52,mentions:7},{sede:'TAY',mes:'ENERO',ota:'GOOGLE',score:86,mentions:14},
+  {sede:'TAY',mes:'FEBRERO',ota:'BOOKING',score:68,mentions:11},{sede:'TAY',mes:'FEBRERO',ota:'GOOGLE',score:72,mentions:2},{sede:'TAY',mes:'FEBRERO',ota:'HOSTELWORLD',score:49,mentions:2},
+  {sede:'TAY',mes:'MARZO',ota:'BOOKING',score:61,mentions:6},{sede:'TAY',mes:'MARZO',ota:'GOOGLE',score:64,mentions:10},{sede:'TAY',mes:'MARZO',ota:'HOSTELWORLD',score:21,mentions:3},
+  {sede:'TAY',mes:'ABRIL',ota:'BOOKING',score:64,mentions:8},{sede:'TAY',mes:'ABRIL',ota:'GOOGLE',score:36,mentions:13},{sede:'TAY',mes:'ABRIL',ota:'HOSTELWORLD',score:76,mentions:2},
+  {sede:'SMR',mes:'ENERO',ota:'BOOKING',score:66,mentions:18},{sede:'SMR',mes:'ENERO',ota:'GOOGLE',score:60,mentions:5},{sede:'SMR',mes:'ENERO',ota:'HOSTELWORLD',score:82,mentions:6},
+  {sede:'SMR',mes:'FEBRERO',ota:'BOOKING',score:73,mentions:10},{sede:'SMR',mes:'FEBRERO',ota:'GOOGLE',score:90,mentions:8},{sede:'SMR',mes:'FEBRERO',ota:'HOSTELWORLD',score:100,mentions:2},
+  {sede:'SMR',mes:'MARZO',ota:'BOOKING',score:82,mentions:7},{sede:'SMR',mes:'MARZO',ota:'GOOGLE',score:50,mentions:2},{sede:'SMR',mes:'MARZO',ota:'HOSTELWORLD',score:88,mentions:5},
+  {sede:'SMR',mes:'ABRIL',ota:'BOOKING',score:100,mentions:2},{sede:'SMR',mes:'ABRIL',ota:'GOOGLE',score:100,mentions:4},{sede:'SMR',mes:'ABRIL',ota:'HOSTELWORLD',score:58,mentions:11},{sede:'SMR',mes:'ABRIL',ota:'TRIPADVISOR',score:100,mentions:1},
+  {sede:'SAL',mes:'ENERO',ota:'BOOKING',score:79,mentions:19},{sede:'SAL',mes:'ENERO',ota:'GOOGLE',score:69,mentions:6},{sede:'SAL',mes:'ENERO',ota:'HOSTELWORLD',score:78,mentions:11},{sede:'SAL',mes:'ENERO',ota:'TRIPADVISOR',score:79,mentions:1},
+  {sede:'SAL',mes:'FEBRERO',ota:'BOOKING',score:82,mentions:12},{sede:'SAL',mes:'FEBRERO',ota:'GOOGLE',score:43,mentions:6},{sede:'SAL',mes:'FEBRERO',ota:'HOSTELWORLD',score:69,mentions:4},
+  {sede:'SAL',mes:'MARZO',ota:'BOOKING',score:98,mentions:9},{sede:'SAL',mes:'MARZO',ota:'GOOGLE',score:86,mentions:8},{sede:'SAL',mes:'MARZO',ota:'HOSTELWORLD',score:81,mentions:13},{sede:'SAL',mes:'MARZO',ota:'TRIPADVISOR',score:100,mentions:1},
+  {sede:'SAL',mes:'ABRIL',ota:'BOOKING',score:92,mentions:7},{sede:'SAL',mes:'ABRIL',ota:'HOSTELWORLD',score:95,mentions:4},
+  {sede:'CTG',mes:'ENERO',ota:'BOOKING',score:80,mentions:16},{sede:'CTG',mes:'ENERO',ota:'GOOGLE',score:33,mentions:3},{sede:'CTG',mes:'ENERO',ota:'HOSTELWORLD',score:85,mentions:6},
+  {sede:'CTG',mes:'FEBRERO',ota:'BOOKING',score:79,mentions:10},{sede:'CTG',mes:'FEBRERO',ota:'GOOGLE',score:89,mentions:10},{sede:'CTG',mes:'FEBRERO',ota:'HOSTELWORLD',score:75,mentions:15},
+  {sede:'CTG',mes:'MARZO',ota:'BOOKING',score:60,mentions:9},{sede:'CTG',mes:'MARZO',ota:'HOSTELWORLD',score:81,mentions:2},
+  {sede:'CTG',mes:'ABRIL',ota:'BOOKING',score:75,mentions:4},{sede:'CTG',mes:'ABRIL',ota:'GOOGLE',score:12,mentions:9},{sede:'CTG',mes:'ABRIL',ota:'HOSTELWORLD',score:76,mentions:6},
+  {sede:'SAI',mes:'ENERO',ota:'BOOKING',score:53,mentions:4},{sede:'SAI',mes:'FEBRERO',ota:'BOOKING',score:54,mentions:3},{sede:'SAI',mes:'FEBRERO',ota:'GOOGLE',score:63,mentions:1},
+  {sede:'SAI',mes:'MARZO',ota:'BOOKING',score:64,mentions:13},{sede:'SAI',mes:'ABRIL',ota:'BOOKING',score:81,mentions:4},{sede:'SAI',mes:'ABRIL',ota:'GOOGLE',score:100,mentions:2},
+  {sede:'GTP',mes:'ENERO',ota:'BOOKING',score:49,mentions:7},{sede:'GTP',mes:'ENERO',ota:'GOOGLE',score:42,mentions:18},{sede:'GTP',mes:'ENERO',ota:'HOSTELWORLD',score:43,mentions:7},
+  {sede:'GTP',mes:'FEBRERO',ota:'BOOKING',score:50,mentions:11},{sede:'GTP',mes:'FEBRERO',ota:'GOOGLE',score:78,mentions:20},{sede:'GTP',mes:'FEBRERO',ota:'HOSTELWORLD',score:68,mentions:3},
+  {sede:'GTP',mes:'MARZO',ota:'BOOKING',score:61,mentions:3},{sede:'GTP',mes:'MARZO',ota:'GOOGLE',score:100,mentions:15},
+  {sede:'GTP',mes:'ABRIL',ota:'BOOKING',score:54,mentions:18},{sede:'GTP',mes:'ABRIL',ota:'GOOGLE',score:98,mentions:12},
+  {sede:'GET',mes:'ENERO',ota:'BOOKING',score:70,mentions:23},{sede:'GET',mes:'ENERO',ota:'GOOGLE',score:90,mentions:12},{sede:'GET',mes:'ENERO',ota:'HOSTELWORLD',score:60,mentions:3},
+  {sede:'GET',mes:'FEBRERO',ota:'BOOKING',score:63,mentions:14},{sede:'GET',mes:'FEBRERO',ota:'GOOGLE',score:92,mentions:8},
+  {sede:'GET',mes:'MARZO',ota:'BOOKING',score:72,mentions:18},{sede:'GET',mes:'MARZO',ota:'GOOGLE',score:100,mentions:6},
+  {sede:'GET',mes:'ABRIL',ota:'BOOKING',score:59,mentions:4},{sede:'GET',mes:'ABRIL',ota:'GOOGLE',score:100,mentions:5},
+];
+const gabRaw=[
+  {sede:'SMR',mes:'ENERO',score:68,mentions:29},{sede:'SMR',mes:'FEBRERO',score:83,mentions:20},{sede:'SMR',mes:'MARZO',score:80,mentions:14},{sede:'SMR',mes:'ABRIL',score:87,mentions:28},
+  {sede:'SAL',mes:'ENERO',score:77,mentions:37},{sede:'SAL',mes:'FEBRERO',score:73,mentions:25},{sede:'SAL',mes:'MARZO',score:89,mentions:31},{sede:'SAL',mes:'ABRIL',score:93,mentions:11},
+  {sede:'CLO',mes:'ENERO',score:70,mentions:16},{sede:'CLO',mes:'FEBRERO',score:94,mentions:13},{sede:'CLO',mes:'MARZO',score:96,mentions:16},{sede:'CLO',mes:'ABRIL',score:58,mentions:16},
+  {sede:'BOG',mes:'ENERO',score:79,mentions:19},{sede:'BOG',mes:'FEBRERO',score:77,mentions:30},{sede:'BOG',mes:'MARZO',score:76,mentions:25},{sede:'BOG',mes:'ABRIL',score:91,mentions:17},
+  {sede:'TAY',mes:'ENERO',score:72,mentions:22},{sede:'TAY',mes:'FEBRERO',score:62,mentions:18},{sede:'TAY',mes:'MARZO',score:60,mentions:21},{sede:'TAY',mes:'ABRIL',score:49,mentions:23},
+  {sede:'MDE',mes:'ENERO',score:63,mentions:16},{sede:'MDE',mes:'FEBRERO',score:74,mentions:16},{sede:'MDE',mes:'MARZO',score:83,mentions:28},{sede:'MDE',mes:'ABRIL',score:83,mentions:3},
+  {sede:'GET',mes:'ENERO',score:76,mentions:38},{sede:'GET',mes:'FEBRERO',score:72,mentions:23},{sede:'GET',mes:'MARZO',score:83,mentions:24},{sede:'GET',mes:'ABRIL',score:91,mentions:9},
+  {sede:'CTG',mes:'ENERO',score:76,mentions:28},{sede:'CTG',mes:'FEBRERO',score:80,mentions:35},{sede:'CTG',mes:'MARZO',score:64,mentions:11},{sede:'CTG',mes:'ABRIL',score:45,mentions:19},
+  {sede:'SAI',mes:'ENERO',score:53,mentions:4},{sede:'SAI',mes:'FEBRERO',score:56,mentions:4},{sede:'SAI',mes:'MARZO',score:62,mentions:15},{sede:'SAI',mes:'ABRIL',score:91,mentions:6},
+  {sede:'GTP',mes:'ENERO',score:44,mentions:34},{sede:'GTP',mes:'FEBRERO',score:68,mentions:34},{sede:'GTP',mes:'MARZO',score:94,mentions:18},{sede:'GTP',mes:'ABRIL',score:72,mentions:31},
+];
+
+const meses=['ENERO','FEBRERO','MARZO','ABRIL'];
+const mesLabels=meses.map(m=>m.charAt(0)+m.slice(1).toLowerCase());
+const cats=['Calidad bebidas','Calidad comida','Servicio'];
+const allSedes=[...new Set(raw.map(r=>r.sede))].sort();
+const gabSedes=[...new Set(gabRaw.map(r=>r.sede))].sort();
+const catColors={'Calidad bebidas':'#818cf8','Calidad comida':'#22d3ee','Servicio':'#f472b6'};
+const catDash={'Calidad bebidas':[6,3],'Calidad comida':[3,2],'Servicio':[]};
+const otaList=['BOOKING','GOOGLE','HOSTELWORLD','TRIPADVISOR'];
+const otaColors={'BOOKING':'#818cf8','GOOGLE':'#22d3ee','HOSTELWORLD':'#f472b6','TRIPADVISOR':'#fb923c'};
+const gabSedeColors=['#818cf8','#22d3ee','#f472b6','#fb923c','#34d399','#60a5fa','#f87171','#c084fc','#38bdf8','#4ade80'];
+
+function avg(arr){return arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:null;}
+const grid={color:'#1a1f2e'};
+const tk={color:'#cbd5e1'};
+const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid,ticks:{...tk,autoSkip:false}},y:{grid,ticks:tk}}};
+
+let bCI,lCI,oBI,otaLCI,mBI,gSI,gMI;
+let selSede=allSedes[0], selGab=gabSedes[0];
+
+function getF(){return{mes:document.getElementById('mesFilter').value,cat:document.getElementById('catFilter').value,sede:document.getElementById('sedeFilter').value};}
+function fRaw(){const{mes,cat,sede}=getF();return raw.filter(r=>(mes==='ALL'||r.mes===mes)&&(cat==='ALL'||r.cat===cat)&&(sede==='ALL'||r.sede===sede));}
+function fOta(){const{mes,sede}=getF();return otaRaw.filter(r=>(mes==='ALL'||r.mes===mes)&&(sede==='ALL'||r.sede===sede));}
+function fGab(){const{mes,sede}=getF();return gabRaw.filter(r=>(mes==='ALL'||r.mes===mes)&&(sede==='ALL'||r.sede===sede));}
+function visSedes(){const s=document.getElementById('sedeFilter').value;return s==='ALL'?allSedes:[s];}
+
+function buildMetrics(){
+  const d=fRaw();
+  const ga=avg(d.filter(r=>r.score!==null).map(r=>r.score));
+  const vs=visSedes();
+  const best=vs.map(s=>{const sc=d.filter(r=>r.sede===s&&r.score!==null).map(r=>r.score);return{s,a:avg(sc)};}).filter(x=>x.a!==null).sort((a,b)=>b.a-a.a);
+  const worst=[...best].reverse();
+  const tm=fOta().reduce((a,r)=>a+r.mentions,0)+fGab().reduce((a,r)=>a+r.mentions,0);
+  document.getElementById('metricCards').innerHTML=`
+    <div class="metric"><div class="metric-label">Score global</div><div class="metric-value accent">${ga!==null?ga.toFixed(1)+'%':'—'}</div><div class="metric-sub">filtro activo</div></div>
+    <div class="metric"><div class="metric-label">Mejor sede</div><div class="metric-value">${best.length?best[0].s:'—'}</div><div class="metric-sub">${best.length?best[0].a.toFixed(1)+'%':''}</div></div>
+    <div class="metric"><div class="metric-label">Sede menor score</div><div class="metric-value">${worst.length?worst[0].s:'—'}</div><div class="metric-sub">${worst.length?worst[0].a.toFixed(1)+'%':''}</div></div>
+    <div class="metric"><div class="metric-label">Total menciones</div><div class="metric-value">${tm.toLocaleString()}</div><div class="metric-sub">OTAs + General A&amp;B</div></div>
+  `;
+}
+
+function buildBar(){
+  const d=fRaw(); const vs=visSedes();
+  const ac=document.getElementById('catFilter').value==='ALL'?cats:[document.getElementById('catFilter').value];
+  const ds=ac.map(cat=>({label:cat,data:vs.map(s=>{const sc=d.filter(r=>r.sede===s&&r.cat===cat&&r.score!==null).map(r=>r.score);const a=avg(sc);return a!==null?parseFloat(a.toFixed(1)):null;}),backgroundColor:catColors[cat]+'99',borderColor:catColors[cat],borderWidth:1,borderRadius:4}));
+  document.getElementById('legBar').innerHTML=ac.map(c=>`<span><span class="legend-dot" style="background:${catColors[c]}"></span>${c}</span>`).join('');
+  if(bCI)bCI.destroy();
+  bCI=new Chart(document.getElementById('barChart'),{type:'bar',data:{labels:vs,datasets:ds},options:{...base,scales:{x:{...base.scales.x},y:{...base.scales.y,min:50,max:100,ticks:{...tk,callback:v=>v+'%'}}}}});
+}
+
+function buildLine(){
+  const sf=document.getElementById('sedeFilter').value==='ALL'?selSede:document.getElementById('sedeFilter').value;
+  const ds=cats.map(cat=>({label:cat,data:meses.map(m=>{const r=raw.find(x=>x.sede===sf&&x.mes===m&&x.cat===cat);return r&&r.score!==null?parseFloat(r.score.toFixed(1)):null;}),borderColor:catColors[cat],backgroundColor:catColors[cat]+'22',tension:0.4,pointRadius:4,pointBackgroundColor:catColors[cat],borderDash:catDash[cat],borderWidth:2}));
+  if(lCI)lCI.destroy();
+  lCI=new Chart(document.getElementById('lineChart'),{type:'line',data:{labels:mesLabels,datasets:ds},options:{...base,scales:{x:{...base.scales.x},y:{...base.scales.y,min:50,max:100,ticks:{...tk,callback:v=>v+'%'}}}}});
+}
+
+function buildOta(){
+  const filtOta=fOta(); const{mes,sede}=getF();
+  const fm=mes==='ALL'?meses:[mes];
+  const labels=fm.map(m=>m.charAt(0)+m.slice(1).toLowerCase());
+  const ds=otaList.map(ota=>({label:ota,data:fm.map(m=>{const rows=filtOta.filter(r=>r.ota===ota&&r.mes===m);const sc=rows.map(r=>r.score);return avg(sc)!==null?parseFloat(avg(sc).toFixed(1)):null;}),backgroundColor:otaColors[ota]+'99',borderColor:otaColors[ota],borderWidth:1,borderRadius:4}));
+  document.getElementById('legOta').innerHTML=otaList.map(o=>`<span><span class="legend-dot" style="background:${otaColors[o]}"></span>${o}</span>`).join('');
+  if(oBI)oBI.destroy();
+  oBI=new Chart(document.getElementById('otaBar'),{type:'bar',data:{labels,datasets:ds},options:{...base,scales:{x:{...base.scales.x},y:{...base.scales.y,min:40,max:100,ticks:{...tk,callback:v=>v+'%'}}}}});
+
+  // Evolución mensual OTAs — siempre sobre los 4 meses, filtrando solo por sede
+  const otaForLine=sede==='ALL'?otaRaw:otaRaw.filter(r=>r.sede===sede);
+  const lineDs=otaList.map(ota=>({
+    label:ota,
+    data:meses.map(m=>{const rows=otaForLine.filter(r=>r.ota===ota&&r.mes===m);const sc=rows.map(r=>r.score);return avg(sc)!==null?parseFloat(avg(sc).toFixed(1)):null;}),
+    borderColor:otaColors[ota],backgroundColor:otaColors[ota]+'22',
+    tension:0.4,pointRadius:4,pointBackgroundColor:otaColors[ota],borderWidth:2
+  }));
+  document.getElementById('legOtaLine').innerHTML=otaList.map(o=>`<span><span class="legend-dot" style="background:${otaColors[o]}"></span>${o}</span>`).join('');
+  if(otaLCI)otaLCI.destroy();
+  otaLCI=new Chart(document.getElementById('otaLineChart'),{type:'line',data:{labels:mesLabels,datasets:lineDs},options:{...base,scales:{x:{...base.scales.x},y:{...base.scales.y,min:40,max:100,ticks:{...tk,callback:v=>v+'%'}}}}});
+
+  const md=otaList.map(ota=>({label:ota,data:fm.map(m=>{const rows=filtOta.filter(r=>r.ota===ota&&r.mes===m);return rows.reduce((a,r)=>a+r.mentions,0)||null;}),backgroundColor:otaColors[ota]+'99',borderColor:otaColors[ota],borderWidth:1,borderRadius:4}));
+  document.getElementById('legMen').innerHTML=otaList.map(o=>`<span><span class="legend-dot" style="background:${otaColors[o]}"></span>${o}</span>`).join('');
+  if(mBI)mBI.destroy();
+  mBI=new Chart(document.getElementById('menBar'),{type:'bar',data:{labels,datasets:md},options:{...base,scales:{x:{...base.scales.x},y:{...base.scales.y,beginAtZero:true}}}});
+}
+
+function buildGab(){
+  const sf=document.getElementById('sedeFilter').value==='ALL'?selGab:document.getElementById('sedeFilter').value;
+  const sd=gabRaw.filter(r=>r.sede===sf);
+  const sData=meses.map(m=>{const r=sd.find(x=>x.mes===m);return r?r.score:null;});
+  document.getElementById('legGabScore').innerHTML=`<span><span class="legend-dot" style="background:#c084fc"></span>${sf}</span>`;
+  if(gSI)gSI.destroy();
+  gSI=new Chart(document.getElementById('gabScoreChart'),{type:'line',data:{labels:mesLabels,datasets:[{label:sf,data:sData,borderColor:'#c084fc',backgroundColor:'#c084fc22',tension:0.4,pointRadius:5,pointBackgroundColor:'#c084fc',borderWidth:2}]},options:{...base,scales:{x:{...base.scales.x},y:{...base.scales.y,min:30,max:100,ticks:{...tk,callback:v=>v+'%'}}}}});
+  const visG=document.getElementById('sedeFilter').value==='ALL'?gabSedes:[document.getElementById('sedeFilter').value].filter(s=>gabSedes.includes(s));
+  const mDs=visG.map((s,i)=>({label:s,data:meses.map(m=>{const r=gabRaw.find(x=>x.sede===s&&x.mes===m);return r?r.mentions:null;}),backgroundColor:gabSedeColors[gabSedes.indexOf(s)%gabSedeColors.length]+'99',borderColor:gabSedeColors[gabSedes.indexOf(s)%gabSedeColors.length],borderWidth:1,borderRadius:4}));
+  document.getElementById('legGabMen').innerHTML=visG.map((s,i)=>`<span><span class="legend-dot" style="background:${gabSedeColors[gabSedes.indexOf(s)%gabSedeColors.length]}"></span>${s}</span>`).join('');
+  if(gMI)gMI.destroy();
+  gMI=new Chart(document.getElementById('gabMenChart'),{type:'bar',data:{labels:mesLabels,datasets:mDs},options:{...base,scales:{x:{...base.scales.x},y:{...base.scales.y,beginAtZero:true}}}});
+}
+
+function buildSedeTabs(){
+  const sede=document.getElementById('sedeFilter').value;
+  document.getElementById('sedeTabsWrap').innerHTML=sede==='ALL'?allSedes.map(s=>`<button class="tab${s===selSede?' active':''}" onclick="setSede('${s}')">${s}</button>`).join(''):`<button class="tab active">${sede}</button>`;
+  document.getElementById('gabTabsWrap').innerHTML=sede==='ALL'?gabSedes.map(s=>`<button class="tab${s===selGab?' active':''}" onclick="setGab('${s}')">${s}</button>`).join(''):(gabSedes.includes(sede)?`<button class="tab active">${sede}</button>`:'');
+}
+
+function buildRanking(){
+  const mes=document.getElementById('rankMes').value;
+  const filtered=mes==='ALL'?gabRaw:gabRaw.filter(r=>r.mes===mes);
+  const ranked=gabSedes.map(s=>{const rows=filtered.filter(r=>r.sede===s);if(!rows.length)return null;const a=rows.reduce((x,r)=>x+r.score,0)/rows.length;const mentions=rows.reduce((x,r)=>x+r.mentions,0);return{sede:s,avg:parseFloat(a.toFixed(1)),mentions};}).filter(Boolean).sort((a,b)=>b.avg-a.avg);
+  const maxScore=ranked[0]?.avg||100;
+  const top5=ranked.slice(0,5); const bot5=[...ranked].reverse().slice(0,5);
+  const rs='display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:#0f1117;border:1px solid #2d3148;margin-bottom:6px;';
+  function makeRow(item,rank,isTop){const pct=(item.avg/maxScore*100).toFixed(1);const color=isTop?'#34d399':'#f87171';return `<div style="${rs}"><span style="font-size:13px;font-weight:600;min-width:20px;text-align:center;color:${color}">${rank}</span><span style="font-size:13px;font-weight:600;color:#f1f5f9;flex:1">${item.sede}</span><div style="flex:2;height:6px;background:#252a3d;border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;border-radius:3px;background:${color}"></div></div><span style="font-size:13px;font-weight:600;min-width:42px;text-align:right;color:#f1f5f9">${item.avg}%</span><span style="font-size:11px;color:#64748b;min-width:52px;text-align:right">${item.mentions} men.</span></div>`;}
+  document.getElementById('rankTop').innerHTML=top5.map((d,i)=>makeRow(d,i+1,true)).join('');
+  document.getElementById('rankBot').innerHTML=bot5.map((d,i)=>makeRow(d,i+1,false)).join('');
+}
+
+window.setSede=s=>{selSede=s;buildSedeTabs();buildLine();};
+window.setGab=s=>{selGab=s;buildSedeTabs();buildGab();};
+function refresh(){buildSedeTabs();buildMetrics();buildBar();buildLine();buildOta();buildGab();buildPopularTopics();}
+['mesFilter','catFilter','sedeFilter'].forEach(id=>document.getElementById(id).addEventListener('change',refresh));
+document.getElementById('rankMes').addEventListener('change',buildRanking);
+
+const topicsData=[
+  {sede:'GTP',mes:'ABRIL',   pos:['cost','taste','temperature','waitstaff attitude','waitstaff quality'],   neg:['size / quantity'],   neu:['restaurant cost','selection']},
+  {sede:'GTP',mes:'MARZO',   pos:['restaurant decor / design','selection','size / quantity','taste','waitstaff attitude','waitstaff quality'],  neg:[],  neu:[]},
+  {sede:'GTP',mes:'FEBRERO', pos:['freshness','selection','taste','waitstaff attitude','waitstaff quality'], neg:['cost','size / quantity'], neu:['bar atmosphere','bar cost','bar decor / design','nutrition','restaurant atmosphere','restaurant convenience','restaurant cost','temperature']},
+  {sede:'GTP',mes:'ENERO',   pos:['waitstaff quality'],  neg:['bar atmosphere','bar cost','restaurant atmosphere'],  neu:['cost','restaurant cost','selection','taste','waitstaff attitude']},
+  {sede:'SAI',mes:'ENERO',   pos:['taste'],  neg:[],  neu:['bar cost','selection']},
+  {sede:'SAI',mes:'FEBRERO', pos:['bar atmosphere','selection'],  neg:['bar cost'],  neu:['temperature']},
+  {sede:'SAI',mes:'MARZO',   pos:['bar cleanliness','selection','taste'],  neg:['waitstaff attitude'],  neu:['bar cost','cost','restaurant cost','restaurant decor / design','temperature']},
+  {sede:'SAI',mes:'ABRIL',   pos:['taste','waitstaff quality'],  neg:[],  neu:['cost']},
+  {sede:'CTG',mes:'ENERO',   pos:['taste','waitstaff attitude','waitstaff quality'],  neg:['cost'],  neu:['selection','temperature']},
+  {sede:'CTG',mes:'FEBRERO', pos:['restaurant cleanliness','selection','taste','waitstaff attitude','waitstaff quality'],  neg:['bar condition','bar cost','bar decor / design'],  neu:['bar atmosphere','cost']},
+  {sede:'CTG',mes:'MARZO',   pos:['taste','waitstaff attitude','waitstaff quality'],  neg:['bar cleanliness','cost'],  neu:[]},
+  {sede:'CTG',mes:'ABRIL',   pos:['bar cleanliness','selection','taste','waitstaff attitude'],  neg:['restaurant cleanliness','restaurant cost'],  neu:['cost','waitstaff quality']},
+  {sede:'GET',mes:'ENERO',   pos:['bar atmosphere','bar cleanliness','bar condition','bar cost','bar decor / design','freshness','restaurant convenience','restaurant cost','selection','smell','taste','waitstaff attitude','waitstaff quality'],  neg:[],  neu:['cost','restaurant atmosphere']},
+  {sede:'GET',mes:'FEBRERO', pos:['bar atmosphere','bar cleanliness','taste','waitstaff attitude','waitstaff quality'],  neg:['bar condition','bar cost'],  neu:['cost','selection']},
+  {sede:'GET',mes:'MARZO',   pos:['bar cleanliness','bar decor / design','restaurant decor / design','taste','waitstaff attitude','waitstaff quality'],  neg:['cost','size / quantity'],  neu:['bar convenience','bar cost','restaurant cost']},
+  {sede:'GET',mes:'ABRIL',   pos:['bar cleanliness','waitstaff attitude','waitstaff quality'],  neg:[],  neu:['cost','taste']},
+  {sede:'MDE',mes:'ENERO',   pos:['bar atmosphere','taste'],  neg:['bar cost','cost'],  neu:['bar convenience','bar decor / design']},
+  {sede:'MDE',mes:'FEBRERO', pos:['cost','restaurant cost','taste','waitstaff attitude','waitstaff quality'],  neg:['bar atmosphere','bar cost'],  neu:[]},
+  {sede:'MDE',mes:'MARZO',   pos:['bar cleanliness','cost','freshness','restaurant atmosphere','restaurant cost','selection','taste','waitstaff attitude'],  neg:['bar condition','bar cost','bar decor / design','size / quantity'],  neu:[]},
+  {sede:'MDE',mes:'ABRIL',   pos:['bar atmosphere','taste'],  neg:[],  neu:[]},
+  {sede:'TAY',mes:'ENERO',   pos:['size / quantity','taste','waitstaff attitude'],  neg:['cost'],  neu:['selection','waitstaff quality','waitstaff speed of service']},
+  {sede:'TAY',mes:'FEBRERO', pos:['bar decor / design','size / quantity','taste','waitstaff attitude'],  neg:['waitstaff speed of service'],  neu:['bar condition','bar cost','cost','selection','waitstaff quality']},
+  {sede:'TAY',mes:'MARZO',   pos:['bar decor / design','waitstaff quality'],  neg:['selection','size / quantity'],  neu:['consistency','cost','taste','waitstaff attitude']},
+  {sede:'TAY',mes:'ABRIL',   pos:['selection','taste'],  neg:['cost','freshness','restaurant cost','size / quantity'],  neu:['waitstaff attitude']},
+  {sede:'BOG',mes:'ENERO',   pos:['taste','waitstaff attitude','waitstaff quality'],  neg:[],  neu:['selection','size / quantity']},
+  {sede:'BOG',mes:'FEBRERO', pos:['bar cleanliness','cost','selection','taste','temperature','waitstaff attitude','waitstaff quality'],  neg:['size / quantity'],  neu:['bar atmosphere','bar cost','waitstaff speed of service']},
+  {sede:'BOG',mes:'MARZO',   pos:['cost','restaurant atmosphere','selection','taste','waitstaff attitude','waitstaff quality'],  neg:[],  neu:['bar condition','selection']},
+  {sede:'BOG',mes:'ABRIL',   pos:['bar atmosphere','cost','taste','waitstaff attitude','waitstaff quality'],  neg:[],  neu:[]},
+  {sede:'CLO',mes:'ENERO',   pos:['bar atmosphere','cost','selection','taste','waitstaff quality'],  neg:[],  neu:[]},
+  {sede:'CLO',mes:'FEBRERO', pos:['cost','selection','taste','waitstaff attitude','waitstaff quality'],  neg:[],  neu:['bar convenience','bar cost','waitstaff speed of service']},
+  {sede:'CLO',mes:'MARZO',   pos:['cost','selection','taste','waitstaff attitude','waitstaff quality'],  neg:[],  neu:[]},
+  {sede:'CLO',mes:'ABRIL',   pos:['waitstaff attitude','waitstaff quality'],  neg:['cost','freshness','restaurant cost','selection'],  neu:['bar convenience','taste']},
+  {sede:'SAL',mes:'ENERO',   pos:['bar cost','cost','restaurant cost','selection','size / quantity','taste','waitstaff appearance','waitstaff attitude','waitstaff quality'],  neg:[],  neu:[]},
+  {sede:'SAL',mes:'FEBRERO', pos:['taste','waitstaff attitude','waitstaff quality'],  neg:['cost','selection'],  neu:['size / quantity']},
+  {sede:'SAL',mes:'MARZO',   pos:['bar atmosphere','restaurant atmosphere','restaurant cleanliness','restaurant convenience','selection','taste','waitstaff attitude','waitstaff quality'],  neg:['restaurant cleanliness','restaurant convenience'],  neu:['cost']},
+  {sede:'SAL',mes:'ABRIL',   pos:['restaurant decor / design','taste','waitstaff quality'],  neg:[],  neu:[]},
+  {sede:'SMR',mes:'ENERO',   pos:['bar atmosphere','bar cleanliness','bar decor / design','cost','restaurant atmosphere','restaurant cost','restaurant decor / design','selection','waitstaff attitude','waitstaff quality'],  neg:['taste'],  neu:['bar convenience']},
+  {sede:'SMR',mes:'FEBRERO', pos:['bar decor / design','restaurant cost','taste','waitstaff attitude','waitstaff quality'],  neg:['bar convenience','temperature'],  neu:[]},
+  {sede:'SMR',mes:'MARZO',   pos:['cost','restaurant cost','selection','taste','waitstaff quality'],  neg:[],  neu:['selection']},
+  {sede:'SMR',mes:'ABRIL',   pos:['bar atmosphere','bar cleanliness','cost','selection','taste','waitstaff attitude','waitstaff quality'],  neg:['bar cost','bar decor / design','temperature'],  neu:[]},
+];
+
+function buildPopularTopics(){
+  const sede=document.getElementById('sedeFilter').value;
+  const mes=document.getElementById('mesFilter').value;
+  const matches=topicsData.filter(d=>(sede==='ALL'||d.sede===sede)&&(mes==='ALL'||d.mes===mes));
+  const container=document.getElementById('ptContent');
+  if(!matches.length){
+    container.innerHTML=`<div style="text-align:center;padding:48px 20px"><div style="font-size:28px;color:#334155;margin-bottom:12px">◎</div><div style="font-size:14px;color:#475569">Sin datos de Popular Topics para este filtro</div></div>`;
+    return;
+  }
+  let html='';
+  matches.forEach(d=>{
+    html+=`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;background:#1e2130;border:1px solid #2d3148;font-size:12px;color:#94a3b8;margin-bottom:16px"><span style="color:#c4b5fd;font-weight:600">${d.sede}</span> · <span style="color:#c4b5fd;font-weight:600">${d.mes.charAt(0)+d.mes.slice(1).toLowerCase()}</span></div>`;
+    html+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">`;
+    const mkCol=(items,color,bg,border,badgeBg,badgeText,label,icon)=>{
+      let c=`<div><div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:${color};margin-bottom:10px">${icon} ${label} (${items.length})</div>`;
+      items.forEach(t=>{c+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:8px;margin-bottom:5px;background:${bg};border:1px solid ${border}"><span style="font-size:13px;font-weight:500;color:${color}">${t}</span><span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:${badgeBg};color:${badgeText};text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap">${label}</span></div>`;});
+      c+=`</div>`;return c;
+    };
+    html+=mkCol(d.pos,'#86efac','#052014','#14532d','#166534','#bbf7d0','Positivo','✓');
+    html+=mkCol(d.neg,'#fca5a5','#1a0404','#4b1818','#7f1d1d','#fecaca','Negativo','✗');
+    html+=mkCol(d.neu,'#94a3b8','#0f1624','#1e293b','#1e293b','#cbd5e1','Neutro','○');
+    html+=`</div>`;
+  });
+  container.innerHTML=html;
+}
+
+refresh();buildRanking();
+</script>
+
+<div style="margin-top:12px;background:#141824;border:1px solid #2d3148;border-radius:12px;padding:18px;">
+  <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Popular Topics</div>
+  <div id="ptContent"></div>
+</div>
+
+</body>
+</html>
